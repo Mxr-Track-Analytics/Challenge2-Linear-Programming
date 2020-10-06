@@ -1,0 +1,273 @@
+---
+title: "Aviation Bio-Fuel Stock Sourcing"
+output: html_notebook
+---
+
+# Problem Statement
+
+A company that produces aircraft biofuel is planning a new product
+called FC (Fuel-Corn). Table 3.21 shows the total quarterly demand in
+tonnes (t) for the coming years as communicated by their customers.
+
+FC demand (T)
+
+Q1        Q2        Q3        Q4
+1,200     1,100     1,300     1,000
+
+Table 3.21: FC quarterly demand
+
+
+In Table 3.22 can be found the costs per tonne of Fuel and Corn for
+every two month period in the years to come.
+
+            B1  B2  B3 B4 B5  B6
+Fuel (ke/t) 2   2.5 2  1  1.5 3
+Corn (ke/t) 1.5 1   2  1  2   2.5
+Table 3.22: Costs of Fuel and Corn in bimonthly periods
+
+
+FC composition is obtained by mixing 35% of Fuel and 65% of Corn.
+The life of Fuel is of four consecutive months and the life of Corn, six
+(i.e., if we buy Fuel in early January, we cannot use it in early May).
+We just buy Fuel and Corn at the beginning of each two-month period
+and make the deliveries of FC at the beginning of each quarter. For
+simplicity, we assume that one can buy, mix and sell the same day.
+In addition, the plant manager has told us that in any two-month pe-
+riod, we cannot buy more Fuel than triple of Corn.
+
+# Problem Setup
+```{r}
+library(lpSolve)
+
+fuel_life <- 4
+corn_life <-6
+buy_cycle <- 2
+deliveries <- c(1200, 1100, 1300, 1000)
+required_fuel <- deliveries*0.35
+required_corn <- deliveries*0.65
+delivery_dates <- c(1,4,7,10)
+purchase_dates <- c(1,3,5,7,9,11)
+fuel_costs <- c(2,2.5,2,1,1.5,3)
+corn_costs <- c(1.5,1,2,1,2,2.5)
+```
+
+# First Delivery Constraints
+```{r}
+#Variables fuel purchases 1-6, corn purchases 1-6
+#Constraints
+# f1 f2 f3 f4 f5 f6 c1 c2 c3 c4 c5 c6
+first_delivery_fuel <- c(1,0,0,0,0,0,0,0,0,0,0,0)
+first_delivery_corn <- c(0,0,0,0,0,0,1,0,0,0,0,0)
+constr <- matrix(c(first_delivery_fuel, first_delivery_corn), ncol=12, byrow=TRUE)
+constr.dir <- c(">=", ">=")
+rhs <- c(required_fuel[1], required_corn[1])
+
+obj.fun <- c(fuel_costs, corn_costs)
+
+#Preview problem definition
+print(obj.fun)
+print(constr)
+print(constr.dir)
+print(rhs)
+```
+
+# Run Model To Optimize Parameters
+```{r}
+#solving model
+prod.sol <- lp("min", obj.fun , constr , constr.dir , rhs,compute.sens=TRUE)
+```
+
+# Verify Trivial Solution of First Shipment
+```{r}
+prod.sol$solution
+```
+```{r}
+#Manually verifying trivial solution
+2*780 + 1.5*420
+```
+
+## Additional Duality Check
+```{r}
+print("Minimized cost:")
+prod.sol
+#prod.sol$duals #includes duals of constraints and reduced costs of variables
+```
+
+## No More then triple fuel then corn
+Example:
+700 fuel and 200 corn violates the principle
+1*700 -3*200 <= 0
+700 - 600 <= 0
+100 <= 0 #False; verifying that the principle has been violated
+```{r}
+january_constraint <- c(1,0,0,0,0,0,-3,0,0,0,0,0)
+constr <- matrix(c(first_delivery_fuel, first_delivery_corn,
+                   january_constraint
+                   ), ncol=12, byrow=TRUE)
+constr.dir <- c(">=",">=","<=")
+rhs  <- c(required_fuel[1], required_corn[1], 0)
+
+#Preview problem definition
+print(obj.fun)
+print(constr)
+print(constr.dir)
+print(rhs)
+
+#resolving model
+prod.sol <- lp("min", obj.fun , constr , constr.dir , rhs,compute.sens=TRUE)
+
+print("Minimized cost:")
+prod.sol
+```
+```{r}
+prod.sol$solution
+```
+
+## Add Constraints For Q2 Shipment
+Fuel from January will still be good for the Q2 shipment in April. Similarly, corn from January will also still be good. Thus the combined purchases from January and March must cover fuel and corn needs for both Q1 and Q2 shipments collectively.
+```{r}
+second_delivery_fuel <- c(1,1,0,0,0,0,0,0,0,0,0,0) 
+second_delivery_corn <- c(0,0,0,0,0,0,1,1,0,0,0,0)
+march_constraint <- c(0,1,0,0,0,0,0,-3,0,0,0,0)
+constr <- matrix(c(first_delivery_fuel, first_delivery_corn,
+                   january_constraint, march_constraint,
+                   second_delivery_fuel, second_delivery_corn
+                   ), ncol=12, byrow=TRUE)
+constr.dir <- c(">=", ">=", "<=", "<=", ">=", ">=")
+rhs <- c(required_fuel[1], required_corn[1],
+         0,0,
+         required_fuel[1]+required_fuel[2], required_corn[1]+required_corn[2]
+         )
+print(obj.fun)
+print(constr)
+print(constr.dir)
+print(rhs)
+```
+
+# Reoptimize Solution
+```{r}
+#solving model
+prod.sol <- lp("min", obj.fun , constr , constr.dir , rhs, compute.sens=TRUE)
+```
+
+# Preview Updated Results
+```{r}
+#Without march constraint: 1495    0    0    0    0    0  420  385    0    0    0    0
+prod.sol$solution
+print("Minimized cost:")
+prod.sol
+```
+
+## Third Quarter Constraints
+January, March, May, July
+Only fuel purchased in May or July will be good for the Q3 shipment (fuel purchased in January or March will be expired in July when the Q3 delivery must be fulfilled). In the case of corn, only January's purchase will have exceeded its shelf life, so purchases from March, May and July are all acceptable. This constraint becomes a little tricky, as corn purchased in March may have been allocated to the Q2 shipment sent out in April.
+```{r}
+#JanFuel,MarchFuel,MayFuel,JulyFuel,SeptFuel,NovFuel,JanCorn,MarchCorn,MayCorn,JulyCorn,SeptCorn,NovCorn
+third_delivery_fuel <- c(0,0,1,1,0,0,
+                         0,0,0,0,0,0) 
+third_delivery_corn_p1 <- c(0,0,0,0,0,0,
+                            0,1,1,1,0,0)
+third_delivery_corn_p2 <- c(0,0,0,0,0,0,
+                            1,1,1,1,0,0)
+may_constraint <- c(0,0,1,0,0,0,
+                    0,0,-3,0,0,0)
+july_constraint <- c(0,0,0,1,0,0,
+                    0,0,0,-3,0,0)
+constr <- matrix(c(first_delivery_fuel, first_delivery_corn,
+                   january_constraint, march_constraint,
+                   second_delivery_fuel, second_delivery_corn,
+                   may_constraint, july_constraint,
+                   third_delivery_fuel, third_delivery_corn_p1, third_delivery_corn_p2
+                   ),
+                 ncol=12, byrow=TRUE)
+constr.dir <- c(">=", ">=",
+                "<=", "<=",
+                ">=", ">=",
+                "<=", "<=",
+                ">=", ">=", ">=")
+rhs <- c(required_fuel[1], required_corn[1],
+         0,0,
+         required_fuel[1]+required_fuel[2], required_corn[1]+required_corn[2],
+         0,0,
+         required_fuel[3], required_corn[2]+required_corn[3], required_corn[1]+required_corn[2]+required_corn[3])
+print(obj.fun)
+print(constr)
+print(constr.dir)
+print(rhs)
+```
+
+
+# Reoptimize Solution
+```{r}
+#solving model
+prod.sol <- lp("min", obj.fun , constr , constr.dir , rhs, compute.sens=TRUE)
+```
+
+# Preview Updated Results
+```{r}
+prod.sol$solution
+print("Minimized cost:")
+prod.sol
+```
+
+## Fourth Quarter Constraints
+
+Quarter 4 delivery is set for early October. Therefore Fuel from July and September will be usable. Corn oil from May,July and September will be usable.
+```{r}
+
+fourth_delivery_fuel_p1 <- c(0,0,1,1,1,0,
+                         0,0,0,0,0,0)
+fourth_delivery_fuel_p2 <- c(0,0,0,1,1,0,
+                         0,0,0,0,0,0) 
+fourth_delivery_corn_p1 <- c(0,0,0,0,0,0,
+                            0,0,1,1,1,0)
+fourth_delivery_corn_p2 <- c(0,0,0,0,0,0,
+                            1,1,1,1,1,0)
+september_constraint <- c(0,0,0,0,1,0,
+                    0,0,0,0,-3,0)
+
+
+
+constr <- matrix(c(first_delivery_fuel, first_delivery_corn,
+                   january_constraint, march_constraint,
+                   second_delivery_fuel, second_delivery_corn,
+                   may_constraint, july_constraint,
+                   third_delivery_fuel, third_delivery_corn_p1, third_delivery_corn_p2,
+                   fourth_delivery_fuel_p1, fourth_delivery_fuel_p2, fourth_delivery_corn_p1, fourth_delivery_corn_p2,
+                   september_constraint
+                   ),
+                 ncol=12, byrow=TRUE)
+constr.dir <- c(">=", ">=",
+                "<=", "<=",
+                ">=", ">=",
+                "<=", "<=",
+                ">=", ">=", ">=",
+                ">=", ">=", ">=", ">=",
+                "<=")
+rhs <- c(required_fuel[1], required_corn[1],
+         0,0,
+         required_fuel[1]+required_fuel[2], required_corn[1]+required_corn[2],
+         0,0,
+         required_fuel[3], required_corn[2]+required_corn[3], required_corn[1]+required_corn[2]+required_corn[3],
+         required_fuel[4], required_fuel[3]+required_fuel[4], required_corn[4],required_corn[1]+required_corn[2]+required_corn[3]+required_corn[4],
+         0)
+```
+
+```{r}
+print(obj.fun)
+print(constr)
+print(constr.dir)
+print(rhs)
+```
+
+```{r}
+prod.sol <- lp("min", obj.fun , constr , constr.dir , rhs, compute.sens=TRUE)
+```
+
+```{r}
+prod.sol$solution
+```
+```{r}
+prod.sol
+```
+
