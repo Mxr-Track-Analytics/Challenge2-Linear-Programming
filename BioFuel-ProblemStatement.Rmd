@@ -1,0 +1,35 @@
+---
+title: "Aviation Bio-Fuel Stock Sourcing Problem"
+output: html_notebook
+---
+
+# Problem Statement
+
+A company that produces aircraft biofuel is planning a new product
+called FC (Fuel-Corn). The table below shows the total quarterly demand in
+tons (t) for the coming years as communicated by their customers.
+
+FC demand (T)
+
+| Q1             | Q2           | Q3           | Q4          |
+| :------------- | :----------: | -----------: |-----------: |
+| 1,200    | 1,100    | 1,300   |  1,000 |
+
+Fuel corn is made of a combination of Fuel and Corn. The supply schedule dictates that we purchase these raw materials on a bimonthly schedule. The costs per ton of Fuel and Corn for
+every two month period in the coming year is listed below.
+
+|           | B1        | B2      |    B3    | B4   |  B5  |  B6  |
+| :-------- | :-------: | :------:| :------: | :---:|:----:| ----:|
+|Fuel (\$/t) | 2         |2.5      |   2      |  1   |  1.5 |  3   |
+|Corn (\$/t) | 1.5       | 1       |   2      |  1   |  2   |   2.5|
+
+
+FC composition is obtained by mixing 35% of Fuel and 65% of Corn.
+The life of Fuel is of four consecutive months and the life of Corn, six
+(i.e., if we buy Fuel in early January, we cannot use it in early May).
+We just buy Fuel and Corn at the beginning of each two-month period
+and make the deliveries of FC at the beginning of each quarter. For
+simplicity, we assume that one can buy, mix and sell the same day.
+In addition, the plant manager has told us that in any two-month period, we cannot buy more Fuel than triple of Corn.
+
+Develop a model to minimize the cost of production.

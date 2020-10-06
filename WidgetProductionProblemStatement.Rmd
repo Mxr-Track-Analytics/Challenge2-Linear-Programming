@@ -1,0 +1,10 @@
+---
+title: "Widget Production"
+output: html_notebook
+---
+
+
+
+## Problem Statement  
+
+A company has to decide its production levels for the next 2 quarters. The anticipated widget demand for those months are 1000, 1400, 1700, 1500, 1800, and 1200 units respectively. The maximum production per month is 1400 units. Widgets produced one month can be delivered either that same month or stored in inventory and delivered at some other month. It costs the company \$3 to produce a widget in standard production and \$2 to carry one unit in inventory from one month to the next. Through additional man-hours, up to 500 additional units can be produced per month but, in this case, the company incurs an additional cost of $7/unit. Formulate as a linear program the problem of determining the production levels so as to minimize the total costs.

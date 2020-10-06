@@ -1,0 +1,75 @@
+---
+title: "Farmer problem"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Problem Statement
+Suppose a farmer has 75 acres on which to plant two crops: wheat and barley. To produce these crops, it costs the farmer (for seed, fertilizer, etc.) $120 per acre for the wheat and $210 per acre for the barley. The farmer has $15000 available for expenses. But after the harvest, the farmer must store the crops while awaiting avourable market conditions. The farmer has storage space for 4000 bushels. Each acre yields an average of 110 bushels of wheat or 30 bushels of barley. If the net profit per bushel of wheat (after all expenses have been subtracted) is $1.30 and for barley is $2.00, how should the farmer plant the 75 acres to maximize profit?
+
+# Math EXpressions
+* maximize:
+   + g = (110)(1.30)x + (30)(2.00)y = 143x + 60y
+
+* subject to:
+   + 120x + 210y <= 15000
+   + 110x + 30y <= 4000
+   + x + y <= 75
+   + x >= 0
+   + y >= 0
+
+
+# Linear Programming in lpSolveAPI
+## Set Objective Function to maximize
+```{r results= "hide"}
+library(lpSolveAPI)
+lprec <- make.lp(0,2)
+lp.control(lprec, sense="max")
+```
+
+
+## Instantiate objective function and the constraints
+```{r}
+set.objfn(lprec, c(143, 60))
+add.constraint(lprec, c(120, 210), "<=", 15000)
+add.constraint(lprec, c(110, 30), "<=", 4000)
+add.constraint(lprec, c(1, 1), "<=", 75)
+```
+
+
+```{r results= "markup"}
+solve(lprec)
+print('Total Maximized Profit:')
+get.objective(lprec)
+print('Acres of Wheat & Barley:')
+get.variables(lprec)
+```
+Linear Equations:
+y= 15000/210 -x*120/210
+y= 4000/30 -x*110/30
+y= 75 -x
+x=0
+y=0
+
+```{r}
+# intersection points
+library(ggplot2)
+myint <- data.frame(x=21.875 ,y=53.125)
+ggplot(data.frame(x=c(0,75)),aes(x)) + 
+  stat_function(fun=function(x) 15000/210 -x*120/210, geom="line", aes(col='y=-15000/210 -x*120/210')) +
+  stat_function(fun=function(x) 4000/30 -x*110/30, geom="line", aes(col='y= 4000/30 -x*110/30')) +
+  stat_function(fun=function(x) 75 -x, geom="line", aes(col='y= 75 -x')) + 
+  geom_vline(xintercept=0, aes(col= 'x=0')) + 
+  geom_hline(yintercept= 0, aes(col='y=0')) + 
+  theme_bw() + 
+  xlim(0, 75)+
+  ylim(0, 150)+
+  labs(title = 'Graphical Analysis') + 
+  geom_point(data=myint, aes(x,y)) + 
+  annotate('text', x=21.875 ,y=53.125, label="(21.875, 53.125)", size=5)+
+  theme_gray()
+```
+
