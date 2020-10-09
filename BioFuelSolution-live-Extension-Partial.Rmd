@@ -1,0 +1,196 @@
+---
+title: "Aviation Bio-Fuel Stock Sourcing Problem"
+output: html_notebook
+---
+
+# Problem Statement
+
+A company that produces aircraft biofuel is planning a new product
+called FC (Fuel-Corn). The table below shows the total quarterly demand in
+tons (t) for the coming years as communicated by their customers.
+
+FC demand (T)
+
+| Q1             | Q2           | Q3           | Q4          |
+| :------------- | :----------: | -----------: |-----------: |
+| 1,200    | 1,100    | 1,300   |  1,000 |
+
+Fuel corn is made of a combination of Fuel and Corn. The supply schedule dictates that we purchase these raw materials on a bimonthly schedule. The costs per ton of Fuel and Corn for
+every two month period in the coming year is listed below.
+
+|           | B1        | B2      |    B3    | B4   |  B5  |  B6  |
+| :-------- | :-------: | :------:| :------: | :---:|:----:| ----:|
+|Fuel (\$/t) | 2         |2.5      |   2      |  1   |  1.5 |  3   |
+|Corn (\$/t) | 1.5       | 1       |   2      |  1   |  2   |   2.5|
+
+
+FC composition is obtained by mixing 35% of Fuel and 65% of Corn.
+The life of Fuel is of four consecutive months and the life of Corn, six
+(i.e., if we buy Fuel in early January, we cannot use it in early May).
+We just buy Fuel and Corn at the beginning of each two-month period
+and make the deliveries of FC at the beginning of each quarter. For
+simplicity, we assume that one can buy, mix and sell the same day.
+In addition, the plant manager has told us that in any two-month period, we cannot buy more Fuel than triple of Corn.
+
+Develop a model to minimize the cost of production.
+
+# Decision Variables
+bf[1:6] buying period for fuel (life is 4 months)
+bc[1:6] buying period for corn (life is 6 months)
+
+bf[1] can go to Q1 and Q2 
+bf11 + bf12
+
+bf[2] can go to Q2
+bf22
+
+bf[3] can go to Q3
+bf33
+
+bf[4] can go to Q3 and Q4
+bf43 + bf44
+
+bf[5] can go to Q4
+bf54
+
+bc[1] can go to Q1 and Q2
+bc11 + bc12
+
+bc[2] can go to Q2 and Q3
+bc22 + bc23
+
+bc[3] can go to Q3 and Q4
+bc33 + bc34
+
+bc[4] can go to Q3 and Q4
+bc43 + bc44
+
+bc[5] can go to Q4
+bc54
+
+Q1 is 1
+Q2 is 4
+Q3 is 7
+Q4 is 10
+
+```{r}
+
+m <- matrix(c(1,1,4,6,2,3,6,8,3,5,8,10,4,7,10,12,5,9,12,14,6,11,14,16), ncol = 4, byrow = TRUE)
+colnames(m) <- c("B", "Start", "Fuel End", "Corn End")
+print(m)
+
+
+```
+
+# Contraints
+bf11 + bf12 - 3 (bc11 + bc12) <= 0
+bf22 - 3 (bc22 + bc23) <= 0
+bf33 - 3 (bc33 + bc34) <= 0
+bf43 + bf44 - 3 (bc43 + bc44) <= 0
+bf54 - 3 (bc54) <= 0
+
+# Q1
+bf11 = 420
+bc11 = 780
+
+# Q2
+bf12 + bf22 = 385
+bc12 + bc22 = 715
+
+# Q3
+bf33 + bf43 = 455
+bc23 + bc33 + bc43 = 845
+
+#Q4
+bf44 + bf54 = 350
+bc34 + bc44 + bc54 = 650
+
+# objective function
+1 bf11
+2 bf12
+3 bf22
+4 bf33
+5 bf43
+6 bf44
+7 bf54
+8 bc11
+9 bc12
+10 bc22
+11 bc23
+12 bc33
+13 bc34
+14 bc43
+15 bc44
+16 bc54
+
+17-32: Discount Counterparts
+32-48: Binary Counterparts
+
+2 (bf11 + bf12) + 2.5 bf22 + 2 bf33 + 1 (bf43 + bf44) + 1.5 (bf54) +
+1.5 (bc11 + bc12) + 1(bc22 + bc23) + 2 (bc33 + bc34) + 1 (bc43 + bc44) + 2 (bc54)
+
+```{r}
+library(lpSolveAPI)
+
+model <- make.lp(0, 16*3)
+
+set.bounds(model, lower = rep(0,16*3))
+
+standard_rates <- c(2,2,
+                   2.5,
+                   2,
+                   1,1,
+                   1.5,
+                   
+                   1.5,1.5,
+                   1,1,
+                   2,2,
+                   1,1,
+                   2)
+set.objfn(model, c(standard_rates, .75*standard_rates, rep(0,16)))
+
+add.constraint(model, rep(c(1,1,-3,-3),2),"<=", 0, c(c(1,2,8,9),c(1,2,8,9)+16))
+add.constraint(model, rep(c(1,-3,-3),2),"<=", 0, c(c(3,10,11),c(3,10,11)+16))
+add.constraint(model, rep(c(1,-3,-3),2),"<=", 0, c(c(4,12,13),c(4,12,13)+16))
+add.constraint(model, rep(c(1,1,-3,-3),2),"<=", 0, c(c(5,6,14,15),c(5,6,14,15)+16))
+add.constraint(model, rep(c(1,-3),2),"<=", 0, c(c(7,16),c(7,16)+16))
+
+# Q1 constraints
+add.constraint(model, rep(1,2),">=", 420, c(1,1+16))
+add.constraint(model, rep(1,2),">=", 780, c(8,8+16))
+
+# Q2 constraints
+add.constraint(model, rep(1,4),">=", 385, c(c(2,3),c(2,3)+16))
+add.constraint(model, rep(1,4),">=", 715, c(c(9,10),c(9,10)+16))
+
+# Q3 constraints
+add.constraint(model, rep(1,4),">=", 455, c(c(4,5),c(4,5)+16))
+add.constraint(model, rep(1,6),">=", 845, c(c(11,12,13),c(11,12,13)+16))
+
+# Q4 constraints
+add.constraint(model, rep(1,4),">=", 350, c(c(6,7),c(6,7)+16))
+add.constraint(model, rep(1,6),">=", 650, c(c(14,15,16),c(14,15,16)+16))
+
+
+solve(model)
+
+print(sum(get.variables(model)[1:2]))
+print(sum(get.variables(model)[3]))
+print(sum(get.variables(model)[4]))
+print(sum(get.variables(model)[5:6]))
+print(sum(get.variables(model)[7]))
+
+print(sum(get.variables(model)[8:9]))
+print(sum(get.variables(model)[10:11]))
+print(sum(get.variables(model)[12:13]))
+print(sum(get.variables(model)[14:15]))
+print(sum(get.variables(model)[16]))
+
+print(sum(get.variables(model)[c(1,8)]))
+print(sum(get.variables(model)[c(2,3,9,10)]))
+print(sum(get.variables(model)[c(4,5,11,12,13)]))
+print(sum(get.variables(model)[c(6,7,14,15,16)]))
+
+get.objective(model)
+
+```
